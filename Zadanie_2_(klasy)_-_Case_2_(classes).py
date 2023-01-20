@@ -25,6 +25,8 @@ import requests
 class Currency():
     '''Converts given currency to Polish zloty according to actual NBP's average exchange rate - https://api.nbp.pl/'''
 
+    nbp_database = []   # database consistent of table A and table B (current average exchange rates)
+    
     def __init__(self, currency_code: str, amount: int | float = 1):
         '''Exchange rates expressed in Polish zloty (PLN).
 
@@ -53,19 +55,43 @@ class Currency():
         list_A = tableA[0]['rates']
         list_B = tableB[0]['rates']
 
-        nbp_database = list_A + list_B
-        self.__nbp_database = nbp_database
+        database = list_A + list_B
+        Currency.nbp_database.extend(database)
 
+        
     def __str__(self) -> str:
         '''Short information on the object.'''
         return f"Currency class object. Currency code: {self.currency}. Amount: {self.amount}"
 
+    
+    def update_database(self) -> None:
+        '''Reload data from NBP website.
+        For the purpose of updating database to current exchange rates.
 
+        The currency database (NBP'S table A and table B) is being loaded at the moment of creating class object.
+        The average exchange rates listed on table A and table B can vary between the time of loading the data at the
+        initialization of class object and the actual time of using one of methods that uses exchange rates stored
+        in created database.
+        This method allows to update database at any time without the purpose of creating new class object.'''
+        response1 = requests.get(r"https://api.nbp.pl/api/exchangerates/tables/A/?format=json")
+        content1 = response1.content
+        tableA = json.loads(content1)
+        response2 = requests.get(r"https://api.nbp.pl/api/exchangerates/tables/B/?format=json")
+        content2 = response2.content
+        tableB = json.loads(content2)
+
+        list_A = tableA[0]['rates']
+        list_B = tableB[0]['rates']
+
+        database_update = list_A + list_B
+        Currency.nbp_database = database_update
+    
+    
     def nbp_code_database(self) -> dict[str]:
         '''Return information on codes (keys) and currencies (values) in form of a dictionary.
         Dictionary contains only currencies available in NBP's databases.'''
         available_currencies = {}
-        for data in self.__nbp_database:
+        for data in self.nbp_database:
             available_currencies[data['code']] = data['currency']
         available_currencies = dict(sorted(available_currencies.items()))
         return available_currencies
@@ -90,7 +116,7 @@ class Currency():
         if currency_code == None:
             currency_code = self.currency
         if currency_code in self.nbp_code_database().keys():
-            for currency in self.__nbp_database:
+            for currency in self.nbp_database:
                 if currency["code"] == currency_code:
                     return currency['currency']
         else:
@@ -109,7 +135,7 @@ class Currency():
         if currency_code == None:
             currency_code = self.currency
         if currency_code in self.nbp_code_database().keys():
-            for currency in self.__nbp_database:
+            for currency in self.nbp_database:
                 if currency["code"] == currency_code:
                     return currency['mid']
         else:
